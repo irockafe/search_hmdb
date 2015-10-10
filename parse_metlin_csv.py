@@ -1,10 +1,9 @@
-from bs4 import BeautifulSoup
 import csv
 from sys import argv
 import pandas
 from lxml import etree
 from collections import defaultdict
-#BeautifulSoup also requires libxml-dev and libxslt-dev packages!
+#You might also requires libxml-dev and libxslt-dev packages!
 
 '''
 This code takes the csv file downloaded from at 
@@ -200,7 +199,7 @@ metlin_data = pandas.read_csv(metlin_csv, header=0)
 isomers = metlin_data['mass'].value_counts()
 #print '\n Isomers \n%s' % isomers
 masses = isomers.index
-print 'Searching HMDB for %s distinct masses' % masses.size
+print '\nSearching HMDB for %s distinct masses' % masses.size
 #print '\n Masses \n%s' % masses
 
 selected_metlin_data = pandas.concat([metlin_data['inputmass'],metlin_data['mass'],metlin_data['adduct'],
