@@ -26,11 +26,13 @@ search HMDB for that mass.
 '''
 
 #Path to csv file
-metlin_csv = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/negativePeaks_sept28_METLIN.csv'
+metlin_csv = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/sept28_data/negativePeaks_sept28_METLIN.csv'
 #Path to HMDB xml database
 hmdb_all_metabolites = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/hmdb_metabolites/removed_xml_hmdb_metabolites.xml'
 #Path to output file
-output_filename = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/toy_hmdb/all_mass_tests.csv'
+output_filename = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/sept28_data/negative_ion_HMDB_hits_formula.csv'
+mass_spec_csv = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/sept28_data/prelim_negativePeaks_Sept28_instrument.csv'
+merged_csv = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/sept28_data/hmdb_mass_spec_merged.csv'
 
 '''
 For debugging/testing purposes. Tests not included yet in git
@@ -184,6 +186,27 @@ def combine_hmdb_metlin(hmdb_df, metlin_df, MW_deviation_tolerance):
 	final_df = combined_df[column_order_final]
 	return final_df
 
+def merge_hmdb_instrument_info(mass_spec_csv, hmdb_hits_csv, merged_csv):
+	'''
+	INPUT - list of file paths
+	FUNCTION - Merges information from the mass spec and info from
+				hmdb into one document on their m/z
+	OUTPUT - csv file
+	'''
+	mass_spec_df = pandas.read_csv(mass_spec_csv)
+	hmdb_df = pandas.read_csv(hmdb_hits_csv)
+	#rename a header from inputmass to m/z
+	hmdb_df = hmdb_df.rename(columns={'inputmass':'m/z'})
+	#merge dataframes based on m/z value
+	merged_df = pandas.merge(hmdb_df, mass_spec_df, how='outer', on=['m/z'])
+	#reorder the output
+	column_order = [u'RT', u'm/z', u'mass',u'adduct', u'HMDB_ID', u'MS2? (1= YES)', 
+					u'dppm', u'Isomers', u'Name', 'Urine', 'Feces', 
+					'Other Biofluids', u'std UW', u'Proc blank PPL', u'Proc blank', 
+					u'1a', u'4p', u'1p', u'Inst blank', u'1p PPL', u'4p PPL', u'1a PPL']
+	merged_df = merged_df[column_order]
+	merged_df.to_csv(merged_csv, encoding='utf-8')
+
 #This is the maximum difference between the MW we are 
 #searching for and the MW we find in HMDB that we will consider a match 
 MW_deviation_tolerance = 1e-9
@@ -219,8 +242,10 @@ hmdb_df = nested_dict_to_dataframe(hmdb_matches)
 #Combine METLIN data with HMDB data
 combined_df = combine_hmdb_metlin(hmdb_df, selected_metlin_data, MW_deviation_tolerance)
 print '\nI found %s compounds in HMDB\n' % combined_df.shape[0]
-print 'Some metabolites may have been skipped. See the log file: log_parse_hmdb.txt\n'
+print 'I might have skipped some HMDB entries. See the log file: log_parse_hmdb.txt\n'
 print 'Saved the output at %s' % output_filename
 
 #Save METLIN/HMDB data to file
 combined_df.to_csv(output_filename, encoding='utf-8')
+merge_hmdb_instrument_info(mass_spec_csv, output_filename, merged_csv)
+print '\nMerged Mass-spec instrument data with hmdb data at %s' % merged_csv
