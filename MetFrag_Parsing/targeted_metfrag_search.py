@@ -1,4 +1,5 @@
 import pandas as pd 
+import numpy as np
 import scipy.io as sio
 
 
@@ -8,6 +9,8 @@ ms2_data_matlab = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_h
 metfrag = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/MetFrag_Parsing/MetFrag2.2-CL.jar'
 parameter_file = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/MetFrag_Parsing/example_parameter_file.txt'
 output_mz_intensity_path = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/MetFrag_Parsing/mz_intensities/'
+metfrag_directory = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/MetFrag_Parsing/mz_intensities/'
+
 #Toy Data
 mass_spec_hmdb = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/MetFrag_Parsing/toy_mass_spec_hmdb.csv'
 
@@ -25,15 +28,58 @@ def get_mz_intensities(mass_spec_ID, ms2_data):
 	return mz_values, intensities
 
 def write_mz_intensities_to_file(mz, intensities, output_path):
+	#Writes out a new tab-delimited file of mz and intensities for MetFrag
 	with open(output_path,'w') as f:
 		for i in range(0,len(intensities)):
 			f.write('%s\t%s\n' % (mz[i][0], intensities[i][0]))
+
+def edit_metfrag_parameters(parameter_file, mz_intensity_path,
+							database, database_id, neutral_mass,
+							output_metfrag_path, mass_spec_ID,
+							metfrag_directory):
+	#Will edit parameter file with our info
+	#Edit peaklist path
+	with open('%s_Metfrag_parameters.txt' % output_metfrag_path, 'w') as f:
+		abs_mass_deviation = 0.5 #MzAbs
+		relative_mass_deviation = 1 #Mzppm
+		ion_mode = -1 #2 is negative ion mode
+		positive_ion_mode = False
+
+
+		#Write peaklist location
+		f.write('PeakListPath = %s\n\n' % mz_intensity_path)
+		#If there is a database, search it
+		if database_id:
+			f.write('MetFragDatabaseType = %s\n' % database)
+			f.write('PrecursorCompoundIDs = %s\n' % database_id)
+			f.write('NeutralPrecursorMass = %s\n\n' % neutral_mass)
+		else: #If no database identified, go with Chemspider
+			f.write('MetFragDatabaseType = Chemspider\n')
+			f.write('NeutralPrecursorMass = %s\n\n' % neutral_mass)
+
+		#Write absolue mass deviation
+		f.write('FragmentPeakMatchAbsoluteMassDeviation = %s\n' % abs_mass_deviation)
+		#Write the relative mass deviation
+		f.write('FragmentPeakMatchRelativeMassDeviation = %s\n' % relative_mass_deviation)
+		f.write('PrecursorIonMode = %s\n' % ion_mode)
+		f.write('IsPositiveIonMode = %s\n\n' % positive_ion_mode)
+		f.write('MetFragScoreTypes = FragmenterScore\n')
+		f.write('MetFragScoreWeights = 1.0\n\n')
+		f.write('MetFragCandidateWriter = CSV\n')
+		f.write('SampleName = %s_metfrag_results\n' % mass_spec_ID)
+		f.write('ResultsPath = %s\n\n' % metfrag_directory)
+		f.write('MaximumTreeDepth = 2\n')
+		f.write('MetFragPreProcessingCandidateFilter = UnconnectedCompoundFilter\n')
+		f.write('MetFragPostProcessingCandidateFilter = InChIKeyFilter\n')
+		f.write('# NumberThreads = 1')
+
 
 mass_spec_df = pd.read_csv(mass_spec_hmdb, header=0)
 #print mass_spec_df
 
 #load matlab with ms2 data
 ms2_data = sio.loadmat(ms2_data_matlab)
+
 
 #Go through each identified hmdb compound. If it has an MS2, 
 #Run that through MetFrag and ge the results
@@ -45,9 +91,27 @@ for i in range(0, len(mass_spec_df)):
 		#Get mz values and intensities
 		mz_values, intensities = get_mz_intensities(mass_spec_ID, ms2_data) #TODO
 		mz_intensity_path = output_mz_intensity_path + 'mz_intensity_%s.txt' % mass_spec_ID
-		#TODO write mz_values and intensities to a txt file
-		write_mz_intensities_to_file(mz_values, intensities, mz_intensity_path)
 
+		write_mz_intensities_to_file(mz_values, intensities, mz_intensity_path)
+		#edit parameter file
+		db = ''
+		database_id = ''
+		if not np.isnan(mass_spec_df.ix[i]['Chemspider ID']):
+			db = 'Chemspider'
+			database_id = int(mass_spec_df.ix[i]['Chemspider ID'])
+			print 'chemspider id: %s' % database_id
+
+		elif not np.isnan(mass_spec_df.ix[i]['Pubchem ID']):
+			db = 'PubChem'
+			database_id = int(mass_spec_df.ix[i]['Pubchem ID'])
+			print 'pubchem id: %s' % database_id
+
+		neutral_mass = mass_spec_df.ix[i]['Metlin Mass']
+		metfrag_output = metfrag_directory + '/%s' % mass_spec_ID
+		#TODO edit the metfrag parameters
+		edit_metfrag_parameters(parameter_file, mz_intensity_path, 
+			db, database_id, neutral_mass, metfrag_output, mass_spec_ID,
+			metfrag_directory)
 
 #1.) Get the m/z and intensities from each ID
 #1.5) Write m/z values to file
