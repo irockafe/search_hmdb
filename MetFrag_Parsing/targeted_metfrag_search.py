@@ -1,7 +1,7 @@
 import pandas as pd 
 import numpy as np
 import scipy.io as sio
-
+import subprocess
 
 #Real data
 #mass_spec_hmdb = '/home/irockafe/Documents/MIT/Fall_2015/Alm_Lab/METLIN_parse_hmdb_search/sept28_data/hmdb_mass_spec_merged.csv'
@@ -35,26 +35,30 @@ def write_mz_intensities_to_file(mz, intensities, output_path):
 
 def edit_metfrag_parameters(parameter_file, mz_intensity_path,
 							database, database_id, neutral_mass,
-							output_metfrag_path, mass_spec_ID,
+							metfrag_parameters_path, mass_spec_ID,
 							metfrag_directory):
 	#Will edit parameter file with our info
 	#Edit peaklist path
-	with open('%s_Metfrag_parameters.txt' % output_metfrag_path, 'w') as f:
+	with open(metfrag_parameters_path, 'w') as f:
 		abs_mass_deviation = 0.5 #MzAbs
 		relative_mass_deviation = 1 #Mzppm
 		ion_mode = -1 #2 is negative ion mode
 		positive_ion_mode = False
 
 
+		chemspider_token = '2105fcfc-62e4-43a8-a420-be3e92e6b6c1'
 		#Write peaklist location
 		f.write('PeakListPath = %s\n\n' % mz_intensity_path)
 		#If there is a database, search it
 		if database_id:
 			f.write('MetFragDatabaseType = %s\n' % database)
-			f.write('PrecursorCompoundIDs = %s\n' % database_id)
-			f.write('NeutralPrecursorMass = %s\n\n' % neutral_mass)
+			f.write('PrecursorCompoundIDs = %s\n'% database_id)
+			f.write('NeutralPrecursorMass = %s\n' % neutral_mass)
+			f.write('ChemSpiderToken = %s\n\n' % chemspider_token)
+
+
 		else: #If no database identified, go with Chemspider
-			f.write('MetFragDatabaseType = Chemspider\n')
+			f.write('MetFragDatabaseType = PubChem\n')
 			f.write('NeutralPrecursorMass = %s\n\n' % neutral_mass)
 
 		#Write absolue mass deviation
@@ -97,7 +101,7 @@ for i in range(0, len(mass_spec_df)):
 		db = ''
 		database_id = ''
 		if not np.isnan(mass_spec_df.ix[i]['Chemspider ID']):
-			db = 'Chemspider'
+			db = 'ChemSpider'
 			database_id = int(mass_spec_df.ix[i]['Chemspider ID'])
 			print 'chemspider id: %s' % database_id
 
@@ -107,11 +111,14 @@ for i in range(0, len(mass_spec_df)):
 			print 'pubchem id: %s' % database_id
 
 		neutral_mass = mass_spec_df.ix[i]['Metlin Mass']
-		metfrag_output = metfrag_directory + '/%s' % mass_spec_ID
-		#TODO edit the metfrag parameters
+		metfrag_parameters_path = metfrag_directory + '/%s_Metfrag_parameters.txt' % mass_spec_ID
+		#Create the metfrag parameters
 		edit_metfrag_parameters(parameter_file, mz_intensity_path, 
-			db, database_id, neutral_mass, metfrag_output, mass_spec_ID,
+			db, database_id, neutral_mass, metfrag_parameters_path, mass_spec_ID,
 			metfrag_directory)
+		#TODO run MetFrag
+		subprocess.call(['java','-jar', metfrag, metfrag_parameters_path])
+
 
 #1.) Get the m/z and intensities from each ID
 #1.5) Write m/z values to file
